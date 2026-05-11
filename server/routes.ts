@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertPhotoSchema, insertMessageSchema, insertEventSchema, insertRsvpSchema, registerUserSchema, loginUserSchema, users } from "@shared/schema";
+import { insertPhotoSchema, insertMessageSchema, insertEventSchema, insertRecommendationSchema, insertRecommendationCommentSchema, insertRsvpSchema, registerUserSchema, loginUserSchema, users, roleSchema, type Role } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 import multer from "multer";
@@ -41,25 +41,86 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
-async function requireAdmin(req: Request, res: Response, next: NextFunction) {
+function requireRole(allowedRoles: Role[], message: string) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    const user = await storage.getUser(req.session.userId);
+    if (!user) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    const parsedRole = roleSchema.safeParse(user.role);
+    if (!parsedRole.success || !allowedRoles.includes(parsedRole.data)) {
+      return res.status(403).json({ message });
+    }
+    next();
+  };
+}
+
+const requireAdmin = requireRole(["admin"], "Admin access required");
+const requireEditor = requireRole(["admin", "editor"], "Editor access required");
+const requireContributor = requireRole(["admin", "editor", "contributor"], "Contributor access required");
+
+async function requireEventEditor(req: Request, res: Response, next: NextFunction) {
   if (!req.session.userId) {
     return res.status(401).json({ message: "Not authenticated" });
   }
+
   const user = await storage.getUser(req.session.userId);
-  if (!user || (user.role !== "admin" && user.role !== "root")) {
-    return res.status(403).json({ message: "Admin access required" });
+  if (!user) {
+    return res.status(401).json({ message: "Not authenticated" });
   }
+
+  if (user.role === "admin" || user.role === "editor") {
+    return next();
+  }
+
+  const eventId = Number(req.params.id);
+  if (Number.isNaN(eventId)) {
+    return res.status(400).json({ message: "Invalid event ID" });
+  }
+
+  const event = await storage.getEvent(eventId);
+  if (!event) {
+    return res.status(404).json({ message: "Event not found" });
+  }
+
+  if (event.createdByUserId !== user.id) {
+    return res.status(403).json({ message: "Event edit access required" });
+  }
+
   next();
 }
 
-async function requireEditor(req: Request, res: Response, next: NextFunction) {
+async function requireRecommendationEditor(req: Request, res: Response, next: NextFunction) {
   if (!req.session.userId) {
     return res.status(401).json({ message: "Not authenticated" });
   }
+
   const user = await storage.getUser(req.session.userId);
-  if (!user || !["admin", "root", "editor"].includes(user.role)) {
-    return res.status(403).json({ message: "Editor access required" });
+  if (!user) {
+    return res.status(401).json({ message: "Not authenticated" });
   }
+
+  if (user.role === "admin" || user.role === "editor") {
+    return next();
+  }
+
+  const recommendationId = Number(req.params.id);
+  if (Number.isNaN(recommendationId)) {
+    return res.status(400).json({ message: "Invalid recommendation ID" });
+  }
+
+  const recommendation = await storage.getRecommendation(recommendationId);
+  if (!recommendation) {
+    return res.status(404).json({ message: "Recommendation not found" });
+  }
+
+  if (recommendation.createdByUserId !== user.id) {
+    return res.status(403).json({ message: "Recommendation edit access required" });
+  }
+
   next();
 }
 
@@ -74,12 +135,15 @@ export async function registerRoutes(
       if (!parsed.success) {
         return res.status(400).json({ message: parsed.error.errors[0].message });
       }
-      const { fullName, email, nickname, username, password } = parsed.data;
+      const { fullName, email, mobileNumber, nickname, username, password } = parsed.data;
 
       const existing = await storage.getUserByUsername(username);
       if (existing) {
         return res.status(400).json({ message: "Username already taken" });
       }
+
+      const userCount = await storage.countUsers();
+      const assignedRole: Role = userCount === 0 ? "admin" : "viewer";
 
       const hashedPassword = await bcrypt.hash(password, 10);
       const user = await storage.createUser({
@@ -87,8 +151,9 @@ export async function registerRoutes(
         password: hashedPassword,
         fullName,
         email,
+        mobileNumber,
         nickname: nickname || null,
-        role: "member",
+        role: assignedRole,
         needsPasswordSetup: false,
       });
 
@@ -101,6 +166,7 @@ export async function registerRoutes(
         username: user.username,
         fullName: user.fullName,
         email: user.email,
+        mobileNumber: user.mobileNumber,
         nickname: user.nickname,
         role: user.role,
         needsPasswordSetup: user.needsPasswordSetup,
@@ -136,6 +202,7 @@ export async function registerRoutes(
           username: user.username,
           fullName: user.fullName,
           email: user.email,
+          mobileNumber: user.mobileNumber,
           nickname: user.nickname,
           role: user.role,
           needsPasswordSetup: false,
@@ -161,6 +228,7 @@ export async function registerRoutes(
         username: user.username,
         fullName: user.fullName,
         email: user.email,
+        mobileNumber: user.mobileNumber,
         nickname: user.nickname,
         role: user.role,
         needsPasswordSetup: user.needsPasswordSetup,
@@ -193,6 +261,7 @@ export async function registerRoutes(
       username: user.username,
       fullName: user.fullName,
       email: user.email,
+      mobileNumber: user.mobileNumber,
       nickname: user.nickname,
       role: user.role,
       needsPasswordSetup: user.needsPasswordSetup,
@@ -211,7 +280,7 @@ export async function registerRoutes(
     res.json(photos);
   });
 
-  app.post("/api/photos", requireAuth, upload.single("photo"), async (req, res) => {
+  app.post("/api/photos", requireContributor, upload.single("photo"), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
@@ -238,7 +307,7 @@ export async function registerRoutes(
     res.json(messages);
   });
 
-  app.post("/api/messages", requireAuth, async (req, res) => {
+  app.post("/api/messages", requireContributor, async (req, res) => {
     try {
       const parsed = insertMessageSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -256,11 +325,37 @@ export async function registerRoutes(
     res.json(events);
   });
 
+  app.get("/api/events/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) {
+        return res.status(400).json({ message: "Invalid event ID" });
+      }
+
+      const event = await storage.getEvent(id);
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      const photos = await storage.getPhotosByEventId(id);
+      res.json({ ...event, photos });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.post("/api/events", requireEditor, async (req, res) => {
     try {
+      const currentUser = await storage.getUser(req.session.userId!);
+      if (!currentUser) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
       const body = {
         ...req.body,
         eventDate: req.body.eventDate ? new Date(req.body.eventDate) : undefined,
+        createdByUserId: currentUser.id,
+        createdByName: currentUser.fullName,
       };
       const parsed = insertEventSchema.safeParse(body);
       if (!parsed.success) {
@@ -273,9 +368,301 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/events/:id", requireEventEditor, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) {
+        return res.status(400).json({ message: "Invalid event ID" });
+      }
+
+      const existingEvent = await storage.getEvent(id);
+      if (!existingEvent) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      const body = {
+        title: req.body.title ?? existingEvent.title,
+        description: req.body.description ?? existingEvent.description,
+        eventDate: req.body.eventDate ? new Date(req.body.eventDate) : existingEvent.eventDate,
+        location: req.body.location ?? existingEvent.location,
+        category: req.body.category ?? existingEvent.category,
+      };
+
+      const parsed = insertEventSchema.partial().safeParse(body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid event data" });
+      }
+
+      const updated = await storage.updateEvent(id, parsed.data);
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/events/:id/photos", requireAuth, upload.single("photo"), async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) {
+        return res.status(400).json({ message: "Invalid event ID" });
+      }
+
+      const event = await storage.getEvent(id);
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const imageUrl = `/uploads/${req.file.filename}`;
+      const uploadedBy = req.body.uploadedBy || "Event attendee";
+      const parsed = insertPhotoSchema.safeParse({
+        title: req.body.title || event.title,
+        description: req.body.description || null,
+        imageUrl,
+        uploadedBy,
+        eventId: id,
+      });
+
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid photo data" });
+      }
+
+      const photo = await storage.createPhoto(parsed.data);
+      res.status(201).json(photo);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/recommendations", requireAuth, async (_req, res) => {
+    try {
+      const recommendations = await storage.getRecommendations();
+      res.json(recommendations);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/recommendations/:id", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) {
+        return res.status(400).json({ message: "Invalid recommendation ID" });
+      }
+
+      const recommendation = await storage.getRecommendation(id);
+      if (!recommendation) {
+        return res.status(404).json({ message: "Recommendation not found" });
+      }
+
+      const comments = await storage.getRecommendationComments(id);
+      const photos = await storage.getPhotosByRecommendationId(id);
+      res.json({ ...recommendation, comments, photos });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/recommendations", requireEditor, async (req, res) => {
+    try {
+      const currentUser = await storage.getUser(req.session.userId!);
+      if (!currentUser) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const body = {
+        ...req.body,
+        createdByUserId: currentUser.id,
+        createdByName: currentUser.fullName,
+      };
+      const parsed = insertRecommendationSchema.safeParse(body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid recommendation data" });
+      }
+
+      const recommendation = await storage.createRecommendation(parsed.data);
+      res.status(201).json(recommendation);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.patch("/api/recommendations/:id", requireRecommendationEditor, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) {
+        return res.status(400).json({ message: "Invalid recommendation ID" });
+      }
+
+      const existingRecommendation = await storage.getRecommendation(id);
+      if (!existingRecommendation) {
+        return res.status(404).json({ message: "Recommendation not found" });
+      }
+
+      const body = {
+        title: req.body.title ?? existingRecommendation.title,
+        description: req.body.description ?? existingRecommendation.description,
+        location: req.body.location ?? existingRecommendation.location,
+        type: req.body.type ?? existingRecommendation.type,
+      };
+
+      const parsed = insertRecommendationSchema.partial().safeParse(body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid recommendation data" });
+      }
+
+      const updated = await storage.updateRecommendation(id, parsed.data);
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/recommendations/:id", requireRecommendationEditor, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) {
+        return res.status(400).json({ message: "Invalid recommendation ID" });
+      }
+
+      const recommendation = await storage.getRecommendation(id);
+      if (!recommendation) {
+        return res.status(404).json({ message: "Recommendation not found" });
+      }
+
+      await storage.deleteRecommendation(id);
+      res.json({ message: "Recommendation deleted" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/recommendations/:id/comments", requireContributor, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) {
+        return res.status(400).json({ message: "Invalid recommendation ID" });
+      }
+
+      const recommendation = await storage.getRecommendation(id);
+      if (!recommendation) {
+        return res.status(404).json({ message: "Recommendation not found" });
+      }
+
+      const currentUser = await storage.getUser(req.session.userId!);
+      if (!currentUser) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const parsed = insertRecommendationCommentSchema.safeParse({
+        recommendationId: id,
+        authorUserId: currentUser.id,
+        authorName: currentUser.fullName,
+        content: req.body.content,
+      });
+
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid comment data" });
+      }
+
+      const comment = await storage.createRecommendationComment(parsed.data);
+      res.status(201).json(comment);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/recommendations/:id/photos", requireContributor, upload.single("photo"), async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) {
+        return res.status(400).json({ message: "Invalid recommendation ID" });
+      }
+
+      const recommendation = await storage.getRecommendation(id);
+      if (!recommendation) {
+        return res.status(404).json({ message: "Recommendation not found" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const currentUser = await storage.getUser(req.session.userId!);
+      if (!currentUser) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const imageUrl = `/uploads/${req.file.filename}`;
+      const parsed = insertPhotoSchema.safeParse({
+        title: req.body.title || recommendation.title,
+        description: req.body.description || null,
+        imageUrl,
+        uploadedBy: req.body.uploadedBy || currentUser.fullName,
+        recommendationId: id,
+      });
+
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid photo data" });
+      }
+
+      const photo = await storage.createPhoto(parsed.data);
+      res.status(201).json(photo);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/recommendations/:id/photos/:photoId", requireEditor, async (req, res) => {
+    try {
+      const recommendationId = Number(req.params.id);
+      const photoId = Number(req.params.photoId);
+      if (Number.isNaN(recommendationId) || Number.isNaN(photoId)) {
+        return res.status(400).json({ message: "Invalid recommendation or photo ID" });
+      }
+
+      const recommendation = await storage.getRecommendation(recommendationId);
+      if (!recommendation) {
+        return res.status(404).json({ message: "Recommendation not found" });
+      }
+
+      const recommendationPhotos = await storage.getPhotosByRecommendationId(recommendationId);
+      const targetPhoto = recommendationPhotos.find((photo) => photo.id === photoId);
+      if (!targetPhoto) {
+        return res.status(404).json({ message: "Photo not found for this recommendation" });
+      }
+
+      await storage.deletePhoto(photoId);
+      res.json({ message: "Recommendation photo deleted" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.get("/api/rsvps", async (_req, res) => {
     const rsvps = await storage.getRsvps();
     res.json(rsvps);
+  });
+
+  app.get("/api/rsvp-users", async (_req, res) => {
+    try {
+      const allUsers = await storage.getUsers();
+      const rsvpUsers = allUsers
+        .map((user) => ({
+          id: user.id,
+          fullName: user.fullName,
+          email: user.email,
+          mobileNumber: user.mobileNumber,
+        }))
+        .sort((left, right) => left.fullName.localeCompare(right.fullName));
+
+      res.json(rsvpUsers);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
   });
 
   app.post("/api/rsvps", async (req, res) => {
@@ -299,6 +686,7 @@ export async function registerRoutes(
         username: u.username,
         fullName: u.fullName,
         email: u.email,
+        mobileNumber: u.mobileNumber,
         nickname: u.nickname,
         role: u.role,
         needsPasswordSetup: u.needsPasswordSetup,
@@ -326,19 +714,21 @@ export async function registerRoutes(
   app.post("/api/admin/change-role/:userId", requireAdmin, async (req, res) => {
     try {
       const userId = req.params.userId as string;
-      const { role } = req.body;
-      if (!["member", "editor"].includes(role)) {
-        return res.status(400).json({ message: "Invalid role. Must be 'member' or 'editor'." });
+      if (userId === req.session.userId) {
+        return res.status(400).json({ message: "You cannot change your own role." });
       }
+      const parsedRole = roleSchema.safeParse(req.body?.role);
+      if (!parsedRole.success) {
+        return res.status(400).json({ message: "Invalid role. Must be one of: admin, editor, contributor, viewer." });
+      }
+
       const targetUser = await storage.getUser(userId);
       if (!targetUser) {
         return res.status(404).json({ message: "User not found" });
       }
-      if (targetUser.role === "admin" || targetUser.role === "root") {
-        return res.status(400).json({ message: "Cannot change role of admin accounts" });
-      }
-      const updated = await storage.updateUserRole(userId, role);
-      res.json({ message: `${updated.fullName} is now a ${role}.` });
+
+      const updated = await storage.updateUserRole(userId, parsedRole.data);
+      res.json({ message: `${updated.fullName} is now a ${parsedRole.data}.` });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }

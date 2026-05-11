@@ -6,7 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import type { Rsvp } from "@shared/schema";
-import tidesLogo from "@assets/header_logo_img_26xxd1.png";
+import tidesLogo from "@assets/GH-Logo-Image.png";
+import honuOnTheBeach from "@assets/HonuOnTheBeach.jpeg";
 
 const features = [
   {
@@ -136,24 +137,29 @@ function WhosComingSection() {
 export default function Home() {
   return (
     <div className="flex flex-col min-h-full">
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#0f274f] via-[#173c73] to-[#7cc7f2]">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_25%,rgba(255,255,255,0.22),transparent_38%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_78%,rgba(125,199,242,0.34),transparent_42%)]" />
+      <div className="relative overflow-hidden">
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: `url(${honuOnTheBeach})` }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0f274f]/70 via-[#173c73]/55 to-[#7cc7f2]/40" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_25%,rgba(255,255,255,0.2),transparent_40%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_78%,rgba(125,199,242,0.28),transparent_44%)]" />
 
         <div className="relative z-10 flex flex-col items-center justify-center px-6 py-16 md:py-24 text-center">
           <div className="bg-white/18 ring-1 ring-white/30 backdrop-blur-sm rounded-full p-4 mb-6 shadow-lg shadow-[#0f274f]/20">
             <img
               src={tidesLogo}
-              alt="Tides Class of 2016 Logo"
+              alt="Tides Class of 2026 Logo"
               className="w-28 h-28 md:w-40 md:h-40 object-contain"
               data-testid="img-hero-logo"
             />
           </div>
           <h1 className="text-3xl md:text-5xl font-bold text-white mb-3 tracking-tight">
-            Tides Class of 2016
+            Tides Class of 2026
           </h1>
           <p className="text-lg md:text-xl text-sky-100 mb-2 max-w-lg">
-            Maui Trip Linkup
+            Maui Linkup
           </p>
           <p className="text-sm md:text-base text-sky-50/85 mb-8 max-w-md">
             Plan it, post it, and do not miss a thing.

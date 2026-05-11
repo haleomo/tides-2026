@@ -6,6 +6,7 @@ interface AuthUser {
   username: string;
   fullName: string;
   email: string;
+  mobileNumber: string;
   nickname: string | null;
   role: string;
   needsPasswordSetup: boolean;
@@ -15,7 +16,7 @@ interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
-  register: (data: { fullName: string; email: string; nickname?: string; username: string; password: string }) => Promise<void>;
+  register: (data: { fullName: string; email: string; mobileNumber: string; nickname?: string; username: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
   refreshSession: () => Promise<void>;
 }
@@ -52,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data);
   };
 
-  const register = async (data: { fullName: string; email: string; nickname?: string; username: string; password: string }) => {
+  const register = async (data: { fullName: string; email: string; mobileNumber: string; nickname?: string; username: string; password: string }) => {
     const res = await apiRequest("POST", "/api/auth/register", data);
     const userData = await res.json();
     setUser(userData);

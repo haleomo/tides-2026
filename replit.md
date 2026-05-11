@@ -1,7 +1,7 @@
-# tides Class of 2016 - Maui Trip Connect
+# tides Class of 2026 - Maui Trip Connect
 
 ## Overview
-A community hub app for the tides Class of 2016 alumni Grad Trip trip. Members can upload photos, send group messages, and view important trip dates/events. Themed in red and black with the tides logo branding.
+A community hub app for the tides Class of 2026 alumni Grad Trip trip. Members can upload photos, send group messages, and view important trip dates/events. Themed in red and black with the tides logo branding.
 
 ## Recent Changes
 - 2026-02-10: Added editor role, event creation form, role management (promote/demote to editor)

@@ -1,20 +1,20 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Heart, Users, MapPin, Calendar } from "lucide-react";
-import tidesLogo from "@assets/header_logo_img_26xxd1.png";
+import tidesLogo from "@assets/GH-Logo-Image.png";
 
 export default function About() {
   return (
     <div className="flex flex-col min-h-full">
       <div className="p-6 pb-0">
         <h1 className="text-2xl font-bold text-foreground" data-testid="text-about-title">About This Trip</h1>
-        <p className="text-sm text-muted-foreground mt-1">tides Class of 2016 Maui Linkup</p>
+        <p className="text-sm text-muted-foreground mt-1">tides Class of 2026 Maui Linkup</p>
       </div>
 
       <div className="flex-1 p-6 space-y-6">
         <div className="flex justify-center">
           <img
             src={tidesLogo}
-            alt="tides Class of 75"
+            alt="tides Class of 2026 Logo"
             className="w-32 h-32 object-contain"
             data-testid="img-about-logo"
           />
@@ -29,7 +29,7 @@ export default function About() {
               <h2 className="font-semibold text-foreground">Yo, tides!</h2>
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              This app keeps the tides Class of 2016 synced for Maui. Plan arrivals, tap in with the group chat, drop pics, and stay on top of the schedule. One spot for everything "tides on Maui."
+              This app keeps the tides Class of 2026 synced for Maui. Plan arrivals, tap in with the group chat, drop pics, and stay on top of the schedule. One spot for everything "tides on Maui."
             </p>
           </CardContent>
         </Card>

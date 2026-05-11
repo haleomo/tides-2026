@@ -103,11 +103,21 @@ app.use((req, res, next) => {
       password TEXT,
       full_name TEXT NOT NULL,
       email TEXT NOT NULL,
+      mobile_number TEXT NOT NULL DEFAULT '',
       nickname TEXT,
-      role TEXT NOT NULL DEFAULT 'member',
+      role TEXT NOT NULL DEFAULT 'viewer',
       needs_password_setup BOOLEAN NOT NULL DEFAULT false
     )
   `);
+  await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS mobile_number TEXT`);
+  await db.execute(sql`UPDATE users SET mobile_number = '' WHERE mobile_number IS NULL`);
+  await db.execute(sql`ALTER TABLE users ALTER COLUMN mobile_number SET DEFAULT ''`);
+  await db.execute(sql`ALTER TABLE users ALTER COLUMN role SET DEFAULT 'viewer'`);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS users_full_name_unique_idx ON users (full_name)`);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique_idx ON users (email)`);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS users_mobile_number_unique_idx ON users (mobile_number) WHERE mobile_number <> ''`);
+  await db.execute(sql`UPDATE users SET role = 'viewer' WHERE role = 'member'`);
+  await db.execute(sql`UPDATE users SET role = 'admin' WHERE role = 'root'`);
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS photos (
       id SERIAL PRIMARY KEY,
@@ -115,9 +125,12 @@ app.use((req, res, next) => {
       description TEXT,
       image_url TEXT NOT NULL,
       uploaded_by TEXT NOT NULL,
+      event_id INTEGER,
       created_at TIMESTAMP DEFAULT NOW() NOT NULL
     )
   `);
+  await db.execute(sql`ALTER TABLE photos ADD COLUMN IF NOT EXISTS event_id INTEGER`);
+  await db.execute(sql`ALTER TABLE photos ADD COLUMN IF NOT EXISTS recommendation_id INTEGER`);
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS messages (
       id SERIAL PRIMARY KEY,
@@ -133,9 +146,57 @@ app.use((req, res, next) => {
       description TEXT,
       event_date TIMESTAMP NOT NULL,
       location TEXT,
-      category TEXT NOT NULL DEFAULT 'general'
+      category TEXT NOT NULL DEFAULT 'general',
+      created_by_user_id VARCHAR,
+      created_by_name TEXT
     )
   `);
+  await db.execute(sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS created_by_user_id VARCHAR`);
+  await db.execute(sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS created_by_name TEXT`);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS recommendations (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      location TEXT NOT NULL DEFAULT '',
+      type TEXT NOT NULL,
+      created_by_user_id VARCHAR,
+      created_by_name TEXT,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )
+  `);
+  await db.execute(sql`ALTER TABLE recommendations ADD COLUMN IF NOT EXISTS created_by_user_id VARCHAR`);
+  await db.execute(sql`ALTER TABLE recommendations ADD COLUMN IF NOT EXISTS created_by_name TEXT`);
+  await db.execute(sql`ALTER TABLE recommendations ADD COLUMN IF NOT EXISTS location TEXT`);
+  await db.execute(sql`UPDATE recommendations SET location = '' WHERE location IS NULL`);
+  await db.execute(sql`ALTER TABLE recommendations ALTER COLUMN location SET DEFAULT ''`);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS recommendation_comments (
+      id SERIAL PRIMARY KEY,
+      recommendation_id INTEGER NOT NULL,
+      author_user_id VARCHAR,
+      author_name TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )
+  `);
+  await db.execute(sql`ALTER TABLE recommendation_comments ADD COLUMN IF NOT EXISTS author_user_id VARCHAR`);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS rsvps (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT,
+      mobile_number TEXT,
+      status TEXT NOT NULL,
+      arrival_date TEXT,
+      departure_date TEXT,
+      accommodation TEXT,
+      transportation TEXT,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )
+  `);
+  await db.execute(sql`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS mobile_number TEXT`);
 
   const { seedDatabase } = await import("./seed");
   await seedDatabase();

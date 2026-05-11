@@ -13,6 +13,10 @@ import Home from "@/pages/home";
 import Photos from "@/pages/photos";
 import Messages from "@/pages/messages";
 import Events from "@/pages/events";
+import EventDetail from "@/pages/event-detail";
+import Recommendations from "@/pages/recommendations";
+import RecommendationDetail from "@/pages/recommendation-detail";
+import RecommendationForm from "@/pages/recommendation-form";
 import About from "@/pages/about";
 import Rsvp from "@/pages/rsvp";
 import AuthPage from "@/pages/auth";
@@ -26,7 +30,12 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/photos" component={Photos} />
       <Route path="/messages" component={Messages} />
+      <Route path="/events/:id" component={EventDetail} />
       <Route path="/events" component={Events} />
+      <Route path="/recommendations/new" component={RecommendationForm} />
+      <Route path="/recommendations/:id/edit" component={RecommendationForm} />
+      <Route path="/recommendations/:id" component={RecommendationDetail} />
+      <Route path="/recommendations" component={Recommendations} />
       <Route path="/rsvp" component={Rsvp} />
       <Route path="/about" component={About} />
       <Route path="/admin" component={Admin} />

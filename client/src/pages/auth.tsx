@@ -15,9 +15,9 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { LogIn, UserPlus, Loader2, ArrowLeft } from "lucide-react";
+import { LogIn, UserPlus, Loader2, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { Link, useLocation, useSearch } from "wouter";
-import tidesLogo from "@assets/header_logo_img_26xxd1.png";
+import tidesLogo from "@assets/GH-Logo-Image.png";
 
 const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -27,6 +27,7 @@ const loginSchema = z.object({
 const registerSchema = z.object({
   fullName: z.string().min(1, "Full name is required"),
   email: z.string().email("Valid email is required"),
+  mobileNumber: z.string().min(7, "Mobile number is required"),
   nickname: z.string().optional(),
   username: z.string().min(3, "Username must be at least 3 characters"),
   password: z.string().min(6, "Password must be at least 6 characters"),
@@ -46,6 +47,9 @@ export default function AuthPage() {
   const { user, login, register } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [showRegisterConfirmPassword, setShowRegisterConfirmPassword] = useState(false);
   const [, setLocation] = useLocation();
 
   useEffect(() => {
@@ -61,7 +65,7 @@ export default function AuthPage() {
 
   const registerForm = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { fullName: "", email: "", nickname: "", username: "", password: "", confirmPassword: "" },
+    defaultValues: { fullName: "", email: "", mobileNumber: "", nickname: "", username: "", password: "", confirmPassword: "" },
   });
 
   async function onLogin(data: LoginValues) {
@@ -85,6 +89,7 @@ export default function AuthPage() {
       await register({
         fullName: data.fullName,
         email: data.email,
+        mobileNumber: data.mobileNumber,
         nickname: data.nickname,
         username: data.username,
         password: data.password,
@@ -118,7 +123,7 @@ export default function AuthPage() {
             />
           </div>
           <h1 className="text-2xl font-bold text-white" data-testid="text-auth-title">
-            tides Class of 2016
+            tides Class of 2026
           </h1>
           <p className="text-sky-100 text-sm">Maui Trip Connect</p>
           <p className="text-sky-100 text-sm">Maui Trip Linkup</p>
@@ -171,14 +176,32 @@ export default function AuthPage() {
                       <FormItem>
                         <FormLabel>Password</FormLabel>
                         <FormControl>
-                          <Input type="password" placeholder="Password" autoComplete="current-password" {...field} data-testid="input-login-password" />
+                          <div className="relative">
+                            <Input
+                              type={showLoginPassword ? "text" : "password"}
+                              placeholder="Password"
+                              autoComplete="current-password"
+                              className="pr-10"
+                              {...field}
+                              data-testid="input-login-password"
+                            />
+                            <button
+                              type="button"
+                              className="absolute inset-y-0 right-0 px-3 text-muted-foreground hover:text-foreground"
+                              onClick={() => setShowLoginPassword((v) => !v)}
+                              aria-label={showLoginPassword ? "Hide password" : "Show password"}
+                              data-testid="button-toggle-login-password"
+                            >
+                              {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Admin accounts (admin/root): set your password on first login.
+                    The first account to register is automatically assigned the admin role.
                   </p>
                   <Button type="submit" className="w-full" disabled={isSubmitting} data-testid="button-login-submit">
                     {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <LogIn className="h-4 w-4 mr-2" />}
@@ -217,6 +240,19 @@ export default function AuthPage() {
                   />
                   <FormField
                     control={registerForm.control}
+                    name="mobileNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Mobile Number</FormLabel>
+                        <FormControl>
+                          <Input placeholder="(555) 123-4567" autoComplete="tel" data-testid="input-register-mobile" value={field.value} onChange={field.onChange} onBlur={field.onBlur} name={field.name} ref={field.ref} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={registerForm.control}
                     name="nickname"
                     render={({ field }) => (
                       <FormItem>
@@ -248,7 +284,25 @@ export default function AuthPage() {
                       <FormItem>
                         <FormLabel>Password</FormLabel>
                         <FormControl>
-                          <Input type="password" placeholder="6+ characters" autoComplete="new-password" {...field} data-testid="input-register-password" />
+                          <div className="relative">
+                            <Input
+                              type={showRegisterPassword ? "text" : "password"}
+                              placeholder="6+ characters"
+                              autoComplete="new-password"
+                              className="pr-10"
+                              {...field}
+                              data-testid="input-register-password"
+                            />
+                            <button
+                              type="button"
+                              className="absolute inset-y-0 right-0 px-3 text-muted-foreground hover:text-foreground"
+                              onClick={() => setShowRegisterPassword((v) => !v)}
+                              aria-label={showRegisterPassword ? "Hide password" : "Show password"}
+                              data-testid="button-toggle-register-password"
+                            >
+                              {showRegisterPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -261,7 +315,25 @@ export default function AuthPage() {
                       <FormItem>
                         <FormLabel>Confirm Password</FormLabel>
                         <FormControl>
-                          <Input type="password" placeholder="Re-enter your password" autoComplete="new-password" {...field} data-testid="input-register-confirm" />
+                          <div className="relative">
+                            <Input
+                              type={showRegisterConfirmPassword ? "text" : "password"}
+                              placeholder="Re-enter your password"
+                              autoComplete="new-password"
+                              className="pr-10"
+                              {...field}
+                              data-testid="input-register-confirm"
+                            />
+                            <button
+                              type="button"
+                              className="absolute inset-y-0 right-0 px-3 text-muted-foreground hover:text-foreground"
+                              onClick={() => setShowRegisterConfirmPassword((v) => !v)}
+                              aria-label={showRegisterConfirmPassword ? "Hide password" : "Show password"}
+                              data-testid="button-toggle-register-confirm-password"
+                            >
+                              {showRegisterConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>

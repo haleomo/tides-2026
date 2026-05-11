@@ -1,6 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Shield, KeyRound, Loader2, AlertCircle, Users, Trash2, ArrowUpDown } from "lucide-react";
+import { Shield, KeyRound, Loader2, AlertCircle, Users, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,16 +20,28 @@ interface AdminUser {
   needsPasswordSetup: boolean;
 }
 
+const roleOptions = ["admin", "editor", "contributor", "viewer"] as const;
+
 export default function Admin() {
   const { toast } = useToast();
   const { user, refreshSession } = useAuth();
   const [, setLocation] = useLocation();
-  const isAdmin = user?.role === "admin" || user?.role === "root";
+  const isAdmin = user?.role === "admin";
+  const [roleDrafts, setRoleDrafts] = useState<Record<string, string>>({});
 
   const { data: users, isLoading, error } = useQuery<AdminUser[]>({
     queryKey: ["/api/admin/users"],
     enabled: isAdmin,
   });
+
+  useEffect(() => {
+    if (!users) return;
+    const nextDrafts: Record<string, string> = {};
+    for (const u of users) {
+      nextDrafts[u.id] = u.role;
+    }
+    setRoleDrafts(nextDrafts);
+  }, [users]);
 
   useEffect(() => {
     if (error && error.message.includes("401")) {
@@ -97,7 +109,7 @@ export default function Admin() {
     <div className="flex flex-col min-h-full">
       <div className="p-6 pb-0">
         <h1 className="text-2xl font-bold text-foreground" data-testid="text-admin-title">User Management</h1>
-        <p className="text-sm text-muted-foreground mt-1">Manage user accounts and reset passwords</p>
+        <p className="text-sm text-muted-foreground mt-1">Manage user accounts, roles, and password resets</p>
       </div>
 
       <div className="flex-1 p-6">
@@ -148,28 +160,35 @@ export default function Admin() {
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5" data-testid={`text-user-details-${u.id}`}>
-                          @{u.username} &middot; {u.email}
-                          {u.nickname ? ` &middot; "${u.nickname}"` : ""}
+                          @{u.username}  {u.email}
+                          {u.nickname ? ` "${u.nickname}"` : ""}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      {u.role !== "admin" && u.role !== "root" && (
+                      <div className="flex items-center gap-2">
+                        <select
+                          className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+                          value={roleDrafts[u.id] ?? u.role}
+                          onChange={(e) => setRoleDrafts((prev) => ({ ...prev, [u.id]: e.target.value }))}
+                          disabled={u.id === user?.id || changeRoleMutation.isPending}
+                          data-testid={`select-role-${u.id}`}
+                        >
+                          {roleOptions.map((role) => (
+                            <option key={role} value={role}>{role}</option>
+                          ))}
+                        </select>
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => changeRoleMutation.mutate({ userId: u.id, role: u.role === "editor" ? "member" : "editor" })}
-                          disabled={changeRoleMutation.isPending}
-                          data-testid={`button-change-role-${u.id}`}
+                          onClick={() => changeRoleMutation.mutate({ userId: u.id, role: roleDrafts[u.id] ?? u.role })}
+                          disabled={u.id === user?.id || changeRoleMutation.isPending || (roleDrafts[u.id] ?? u.role) === u.role}
+                          data-testid={`button-save-role-${u.id}`}
                         >
-                          {changeRoleMutation.isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                          ) : (
-                            <ArrowUpDown className="h-4 w-4 mr-1" />
-                          )}
-                          {u.role === "editor" ? "Demote to Member" : "Make Editor"}
+                          {changeRoleMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                          Save Role
                         </Button>
-                      )}
+                      </div>
                       <Button
                         variant="outline"
                         size="sm"

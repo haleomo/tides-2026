@@ -3,14 +3,19 @@ import { pgTable, text, varchar, timestamp, serial, integer, boolean } from "dri
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+export const roleValues = ["admin", "editor", "contributor", "viewer"] as const;
+export const roleSchema = z.enum(roleValues);
+export type Role = z.infer<typeof roleSchema>;
+
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
   password: text("password"),
-  fullName: text("full_name").notNull(),
-  email: text("email").notNull(),
+  fullName: text("full_name").notNull().unique(),
+  email: text("email").notNull().unique(),
+  mobileNumber: text("mobile_number").notNull().unique(),
   nickname: text("nickname"),
-  role: text("role").notNull().default("member"),
+  role: text("role").notNull().default("viewer"),
   needsPasswordSetup: boolean("needs_password_setup").notNull().default(false),
 });
 
@@ -21,6 +26,7 @@ export const insertUserSchema = createInsertSchema(users).omit({
 export const registerUserSchema = z.object({
   fullName: z.string().min(1, "Full name is required"),
   email: z.string().email("Valid email is required"),
+  mobileNumber: z.string().min(7, "Mobile number is required"),
   nickname: z.string().optional(),
   username: z.string().min(3, "Username must be at least 3 characters"),
   password: z.string().min(6, "Password must be at least 6 characters"),
@@ -40,6 +46,8 @@ export const photos = pgTable("photos", {
   description: text("description"),
   imageUrl: text("image_url").notNull(),
   uploadedBy: text("uploaded_by").notNull(),
+  eventId: integer("event_id"),
+  recommendationId: integer("recommendation_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -73,19 +81,66 @@ export const events = pgTable("events", {
   eventDate: timestamp("event_date").notNull(),
   location: text("location"),
   category: text("category").notNull().default("general"),
+  createdByUserId: varchar("created_by_user_id"),
+  createdByName: text("created_by_name"),
 });
 
 export const insertEventSchema = createInsertSchema(events).omit({
   id: true,
+  createdByUserId: true,
+  createdByName: true,
 });
 
 export type InsertEvent = z.infer<typeof insertEventSchema>;
 export type Event = typeof events.$inferSelect;
 
+export const recommendationTypeValues = ["restaurant", "coffee shop", "activity", "shopping", "drive", "hike", "beach", "foods", "attraction", "park"] as const;
+export const recommendationTypeSchema = z.enum(recommendationTypeValues);
+
+export const recommendations = pgTable("recommendations", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  location: text("location").notNull().default(""),
+  type: text("type").notNull(),
+  createdByUserId: varchar("created_by_user_id"),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertRecommendationSchema = createInsertSchema(recommendations).omit({
+  id: true,
+  createdByUserId: true,
+  createdByName: true,
+}).extend({
+  type: recommendationTypeSchema,
+});
+
+export type InsertRecommendation = z.infer<typeof insertRecommendationSchema>;
+export type Recommendation = typeof recommendations.$inferSelect;
+
+export const recommendationComments = pgTable("recommendation_comments", {
+  id: serial("id").primaryKey(),
+  recommendationId: integer("recommendation_id").notNull(),
+  authorUserId: varchar("author_user_id"),
+  authorName: text("author_name").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertRecommendationCommentSchema = createInsertSchema(recommendationComments).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertRecommendationComment = z.infer<typeof insertRecommendationCommentSchema>;
+export type RecommendationComment = typeof recommendationComments.$inferSelect;
+
 export const rsvps = pgTable("rsvps", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email"),
+  mobileNumber: text("mobile_number"),
   status: text("status").notNull(),
   arrivalDate: text("arrival_date"),
   departureDate: text("departure_date"),

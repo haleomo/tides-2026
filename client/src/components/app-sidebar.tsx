@@ -1,6 +1,6 @@
-import { Home, Camera, MessageCircle, Calendar, Info, UserCheck, Shield } from "lucide-react";
+import { Home, Camera, MessageCircle, Calendar, Info, UserCheck, Shield, MapPinned } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import tidesLogo from "@assets/header_logo_img_26xxd1.png";
+import tidesLogo from "@assets/GH-Logo-Image.png";
 import { useAuth } from "@/lib/auth";
 
 import {
@@ -21,6 +21,7 @@ const navItems = [
   { title: "Photo Gallery", url: "/photos", icon: Camera },
   { title: "Messages", url: "/messages", icon: MessageCircle },
   { title: "Trip Events", url: "/events", icon: Calendar },
+  { title: "Recommendations", url: "/recommendations", icon: MapPinned },
   { title: "RSVP", url: "/rsvp", icon: UserCheck },
   { title: "About", url: "/about", icon: Info },
 ];
@@ -28,7 +29,7 @@ const navItems = [
 export function AppSidebar() {
   const [location] = useLocation();
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin" || user?.role === "root";
+  const isAdmin = user?.role === "admin";
 
   return (
     <Sidebar>
@@ -36,7 +37,7 @@ export function AppSidebar() {
         <Link href="/" className="flex items-center gap-3">
           <img src={tidesLogo} alt="tides Logo" className="w-10 h-10 object-contain" />
           <div className="flex flex-col">
-            <span className="font-bold text-sm leading-tight text-sidebar-foreground">tides 2016</span>
+            <span className="font-bold text-sm leading-tight text-sidebar-foreground">tides 2026</span>
             <span className="text-xs text-muted-foreground">Maui Trip</span>
           </div>
         </Link>
@@ -87,7 +88,7 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter className="p-4">
         <p className="text-xs text-muted-foreground text-center">
-          Class of 2016 Grad Trip
+          Class of 2026 Grad Trip
         </p>
       </SidebarFooter>
     </Sidebar>

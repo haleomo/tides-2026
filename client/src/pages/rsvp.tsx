@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -25,15 +26,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { UserCheck, Clock, MapPin, Car, Loader2 } from "lucide-react";
+import { UserCheck, Clock, MapPin, Car, Loader2, Phone } from "lucide-react";
 
 const rsvpFormSchema = insertRsvpSchema.extend({
   name: z.string().min(1, "Name is required"),
   email: z.string().email("Please enter a valid email").or(z.literal("")).optional().nullable(),
+  mobileNumber: z.string().max(30, "Mobile number is too long").optional().nullable(),
   status: z.string().min(1, "Please select your attendance status"),
 });
 
 type RsvpFormValues = z.infer<typeof rsvpFormSchema>;
+
+interface RegisteredRsvpUser {
+  id: string;
+  fullName: string;
+  email: string;
+  mobileNumber: string;
+}
 
 const statusLabels: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   interested: { label: "Maybe", variant: "secondary" },
@@ -58,9 +67,14 @@ const transportationLabels: Record<string, string> = {
 
 export default function Rsvp() {
   const { toast } = useToast();
+  const [selectedUserId, setSelectedUserId] = useState<string>("");
 
   const { data: rsvps = [], isLoading } = useQuery<Rsvp[]>({
     queryKey: ["/api/rsvps"],
+  });
+
+  const { data: registeredUsers = [] } = useQuery<RegisteredRsvpUser[]>({
+    queryKey: ["/api/rsvp-users"],
   });
 
   const form = useForm<RsvpFormValues>({
@@ -68,6 +82,7 @@ export default function Rsvp() {
     defaultValues: {
       name: "",
       email: "",
+      mobileNumber: "",
       status: "",
       arrivalDate: "",
       departureDate: "",
@@ -82,6 +97,7 @@ export default function Rsvp() {
       const res = await apiRequest("POST", "/api/rsvps", {
         ...data,
         email: data.email || null,
+        mobileNumber: data.mobileNumber || null,
         arrivalDate: data.arrivalDate || null,
         departureDate: data.departureDate || null,
         accommodation: data.accommodation || null,
@@ -93,6 +109,7 @@ export default function Rsvp() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/rsvps"] });
       form.reset();
+      setSelectedUserId("");
       toast({
         title: "RSVP sent",
         description: "You are on the list.",
@@ -109,6 +126,23 @@ export default function Rsvp() {
 
   function onSubmit(data: RsvpFormValues) {
     mutation.mutate(data);
+  }
+
+  function handleRegisteredUserChange(userId: string) {
+    setSelectedUserId(userId);
+
+    if (userId === "manual") {
+      return;
+    }
+
+    const selectedUser = registeredUsers.find((user) => user.id === userId);
+    if (!selectedUser) {
+      return;
+    }
+
+    form.setValue("name", selectedUser.fullName, { shouldValidate: true, shouldDirty: true });
+    form.setValue("email", selectedUser.email, { shouldValidate: true, shouldDirty: true });
+    form.setValue("mobileNumber", selectedUser.mobileNumber, { shouldValidate: true, shouldDirty: true });
   }
 
   return (
@@ -130,7 +164,27 @@ export default function Rsvp() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <FormLabel>Registered User (optional)</FormLabel>
+                <Select onValueChange={handleRegisteredUserChange} value={selectedUserId}>
+                  <SelectTrigger data-testid="select-rsvp-registered-user">
+                    <SelectValue placeholder="Select your name if you already registered" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="manual">I am not on the list</SelectItem>
+                    {registeredUsers.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.fullName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  If you select your name, we will fill in your email and mobile number. Otherwise, enter details manually.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
                   name="name"
@@ -152,6 +206,19 @@ export default function Rsvp() {
                       <FormLabel>Email (optional)</FormLabel>
                       <FormControl>
                         <Input placeholder="your@email.com" {...field} value={field.value ?? ""} data-testid="input-rsvp-email" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="mobileNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Mobile Number (optional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="(555) 123-4567" {...field} value={field.value ?? ""} data-testid="input-rsvp-mobile" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -210,55 +277,6 @@ export default function Rsvp() {
                   )}
                 />
               </div>
-
-              <FormField
-                control={form.control}
-                name="accommodation"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Accommodation</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value ?? undefined}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-rsvp-accommodation">
-                          <SelectValue placeholder="Pick your stay plan" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="own_place">Have my own place</SelectItem>
-                        <SelectItem value="need_hotel">Need hotel recommendation</SelectItem>
-                        <SelectItem value="sharing">Sharing with another classmate</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="transportation"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Transportation</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value ?? undefined}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-rsvp-transportation">
-                          <SelectValue placeholder="Pick your ride plan" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="own_transport">Have my own transportation</SelectItem>
-                        <SelectItem value="need_ride_airport">Need ride from airport</SelectItem>
-                        <SelectItem value="need_ride_bus">Need ride from bus station</SelectItem>
-                        <SelectItem value="need_ride_ferry">Need ride from ferry terminal</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
               <FormField
                 control={form.control}
@@ -332,6 +350,12 @@ export default function Rsvp() {
                         {rsvp.arrivalDate && rsvp.departureDate && " | "}
                         {rsvp.departureDate && `Departing: ${rsvp.departureDate}`}
                       </span>
+                    </div>
+                  )}
+                  {rsvp.mobileNumber && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Phone className="h-3.5 w-3.5 shrink-0" />
+                      <span>{rsvp.mobileNumber}</span>
                     </div>
                   )}
                   {rsvp.accommodation && accommodationLabels[rsvp.accommodation] && (

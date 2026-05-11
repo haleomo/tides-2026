@@ -44,7 +44,8 @@ function getAvatarColor(name: string) {
 export default function Messages() {
   const { toast } = useToast();
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin" || user?.role === "root";
+  const isAdmin = user?.role === "admin";
+  const canPostMessages = user ? ["admin", "editor", "contributor"].includes(user.role) : false;
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const form = useForm({
@@ -96,6 +97,10 @@ export default function Messages() {
   }, [messages]);
 
   const onSubmit = (values: { author: string; content: string }) => {
+    if (!canPostMessages) {
+      toast({ title: "Permission denied", description: "Only contributors, editors, and admins can post messages.", variant: "destructive" });
+      return;
+    }
     sendMutation.mutate(values);
   };
 
@@ -178,7 +183,7 @@ export default function Messages() {
         <div ref={messagesEndRef} />
       </div>
 
-      {user ? (
+      {user ? canPostMessages ? (
         <div className="border-t p-4">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="flex gap-2">
@@ -217,6 +222,12 @@ export default function Messages() {
               </Button>
             </form>
           </Form>
+        </div>
+      ) : (
+        <div className="border-t p-4 text-center">
+          <p className="text-sm text-muted-foreground" data-testid="text-no-message-permission">
+            Your role is view-only. Ask an admin to grant contributor access to post messages.
+          </p>
         </div>
       ) : (
         <div className="border-t p-4 text-center">

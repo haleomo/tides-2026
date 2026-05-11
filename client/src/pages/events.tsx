@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Calendar, MapPin, Clock, Tag, AlertCircle, Trash2, Plus, Loader2 } from "lucide-react";
+import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,7 +30,8 @@ function isUpcoming(date: string | Date) {
 export default function Events() {
   const { toast } = useToast();
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin" || user?.role === "root";
+  const [, navigate] = useLocation();
+  const isAdmin = user?.role === "admin";
   const canAddEvents = isAdmin || user?.role === "editor";
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
@@ -209,7 +211,7 @@ export default function Events() {
                 </h2>
                 <div className="space-y-3">
                   {upcoming.map((event) => (
-                    <EventCard key={event.id} event={event} isAdmin={isAdmin} onDelete={(id) => deleteMutation.mutate(id)} isDeleting={deleteMutation.isPending} />
+                    <EventCard key={event.id} event={event} isAdmin={isAdmin} onOpen={(id) => navigate(`/events/${id}`)} onDelete={(id) => deleteMutation.mutate(id)} isDeleting={deleteMutation.isPending} />
                   ))}
                 </div>
               </div>
@@ -219,7 +221,7 @@ export default function Events() {
                 <h2 className="text-lg font-semibold text-muted-foreground mb-4">Past Plans</h2>
                 <div className="space-y-3 opacity-70">
                   {past.map((event) => (
-                    <EventCard key={event.id} event={event} isAdmin={isAdmin} onDelete={(id) => deleteMutation.mutate(id)} isDeleting={deleteMutation.isPending} />
+                    <EventCard key={event.id} event={event} isAdmin={isAdmin} onOpen={(id) => navigate(`/events/${id}`)} onDelete={(id) => deleteMutation.mutate(id)} isDeleting={deleteMutation.isPending} />
                   ))}
                 </div>
               </div>
@@ -241,13 +243,13 @@ export default function Events() {
   );
 }
 
-function EventCard({ event, isAdmin, onDelete, isDeleting }: { event: Event; isAdmin: boolean; onDelete: (id: number) => void; isDeleting: boolean }) {
+function EventCard({ event, isAdmin, onOpen, onDelete, isDeleting }: { event: Event; isAdmin: boolean; onOpen: (id: number) => void; onDelete: (id: number) => void; isDeleting: boolean }) {
   const date = new Date(event.eventDate);
   const month = date.toLocaleString("default", { month: "short" }).toUpperCase();
   const day = date.getDate();
 
   return (
-    <Card data-testid={`card-event-${event.id}`}>
+    <Card className="cursor-pointer hover-elevate" data-testid={`card-event-${event.id}`} onClick={() => onOpen(event.id)}>
       <CardContent className="p-4">
         <div className="flex gap-4">
           <div className="flex flex-col items-center justify-center bg-primary/10 rounded-md w-14 h-14 shrink-0">
@@ -267,7 +269,10 @@ function EventCard({ event, isAdmin, onDelete, isDeleting }: { event: Event; isA
                     size="icon"
                     variant="ghost"
                     className="text-destructive"
-                    onClick={() => onDelete(event.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(event.id);
+                    }}
                     disabled={isDeleting}
                     data-testid={`button-delete-event-${event.id}`}
                   >

@@ -28,7 +28,8 @@ type UploadFormValues = z.infer<typeof uploadFormSchema>;
 export default function Photos() {
   const { toast } = useToast();
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin" || user?.role === "root";
+  const isAdmin = user?.role === "admin";
+  const canPostPhotos = user ? ["admin", "editor", "contributor"].includes(user.role) : false;
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -98,6 +99,10 @@ export default function Photos() {
   };
 
   const onSubmit = (values: UploadFormValues) => {
+    if (!canPostPhotos) {
+      toast({ title: "Permission denied", description: "Only contributors, editors, and admins can post photos.", variant: "destructive" });
+      return;
+    }
     if (!file) {
       toast({ title: "Please select a photo", variant: "destructive" });
       return;
@@ -112,7 +117,7 @@ export default function Photos() {
           <h1 className="text-2xl font-bold text-foreground" data-testid="text-photos-title">Photo Gallery</h1>
           <p className="text-sm text-muted-foreground mt-1">Drop your best pics and relive the moments</p>
         </div>
-        {user ? (
+        {user && canPostPhotos ? (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button data-testid="button-upload-photo">
@@ -146,7 +151,7 @@ export default function Photos() {
                       <FormItem>
                         <FormLabel>Title</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="e.g. Senior Prom 2016" data-testid="input-photo-title" />
+                          <Input {...field} placeholder="e.g. Senior Prom 2026" data-testid="input-photo-title" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -162,7 +167,6 @@ export default function Photos() {
                           <Textarea
                             {...field}
                             placeholder="Tell us about this photo..."
-                            placeholder="Quick caption..."
                             className="resize-none"
                             data-testid="input-photo-description"
                           />
@@ -209,6 +213,10 @@ export default function Photos() {
               </Form>
             </DialogContent>
           </Dialog>
+        ) : user ? (
+          <p className="text-sm text-muted-foreground" data-testid="text-no-photo-permission">
+            Your role is view-only. Ask an admin for contributor access to post photos.
+          </p>
         ) : (
           <Button asChild data-testid="button-login-to-upload">
             <Link href="/auth">
@@ -274,7 +282,7 @@ export default function Photos() {
                 <CardContent className="p-3">
                   <h3 className="font-semibold text-sm text-foreground truncate">{photo.title}</h3>
                   <p className="text-xs text-muted-foreground mt-1">
-                    by {photo.uploadedBy} &middot; {new Date(photo.createdAt).toLocaleDateString()}
+                    by {photo.uploadedBy} {new Date(photo.createdAt).toLocaleDateString()}
                   </p>
                 </CardContent>
               </Card>
@@ -289,11 +297,15 @@ export default function Photos() {
             <p className="text-sm text-muted-foreground mb-4 max-w-sm">
               Nothing posted yet. Be first and drop a fire memory.
             </p>
-            {user ? (
+            {user && canPostPhotos ? (
               <Button onClick={() => setOpen(true)} data-testid="button-upload-first">
                 <Upload className="h-4 w-4 mr-2" />
                 Post First Photo
               </Button>
+            ) : user ? (
+              <p className="text-sm text-muted-foreground" data-testid="text-no-photo-permission-empty">
+                Your role is view-only. Ask an admin for contributor access to post photos.
+              </p>
             ) : (
               <Button asChild data-testid="button-login-to-upload-first">
                 <Link href="/auth">
