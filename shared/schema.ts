@@ -74,6 +74,23 @@ export const insertMessageSchema = createInsertSchema(messages).omit({
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type Message = typeof messages.$inferSelect;
 
+export const messageComments = pgTable("message_comments", {
+  id: serial("id").primaryKey(),
+  messageId: integer("message_id").notNull(),
+  authorUserId: varchar("author_user_id"),
+  authorName: text("author_name").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertMessageCommentSchema = createInsertSchema(messageComments).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertMessageComment = z.infer<typeof insertMessageCommentSchema>;
+export type MessageComment = typeof messageComments.$inferSelect;
+
 export const events = pgTable("events", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),

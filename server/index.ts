@@ -136,6 +136,17 @@ app.use((req, res, next) => {
   `);
 
   await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS message_comments (
+      id SERIAL PRIMARY KEY,
+      message_id INTEGER NOT NULL,
+      author_user_id VARCHAR,
+      author_name TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )
+  `);
+
+  await db.execute(sql`
     CREATE TABLE IF NOT EXISTS events (
       id SERIAL PRIMARY KEY,
       title TEXT NOT NULL,

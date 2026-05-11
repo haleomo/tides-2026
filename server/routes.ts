@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertPhotoSchema, insertMessageSchema, insertEventSchema, insertRecommendationSchema, insertRecommendationCommentSchema, insertRsvpSchema, registerUserSchema, loginUserSchema, users, roleSchema, type Role } from "@shared/schema";
+import { insertPhotoSchema, insertMessageSchema, insertMessageCommentSchema, insertEventSchema, insertRecommendationSchema, insertRecommendationCommentSchema, insertRsvpSchema, registerUserSchema, loginUserSchema, users, roleSchema, type Role } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 import multer from "multer";
@@ -768,6 +768,51 @@ export async function registerRoutes(
       if (isNaN(id)) return res.status(400).json({ message: "Invalid message ID" });
       await storage.deleteMessage(id);
       res.json({ message: "Message deleted" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/messages/:id/comments", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) return res.status(400).json({ message: "Invalid message ID" });
+      const comments = await storage.getMessageComments(id);
+      res.json(comments);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/messages/:id/comments", requireContributor, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) return res.status(400).json({ message: "Invalid message ID" });
+
+      const currentUser = await storage.getUser(req.session.userId!);
+      if (!currentUser) return res.status(401).json({ message: "Not authenticated" });
+
+      const parsed = insertMessageCommentSchema.safeParse({
+        messageId: id,
+        authorUserId: currentUser.id,
+        authorName: currentUser.fullName,
+        content: req.body.content,
+      });
+      if (!parsed.success) return res.status(400).json({ message: "Invalid comment data" });
+
+      const comment = await storage.createMessageComment(parsed.data);
+      res.status(201).json(comment);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/messages/:id/comments/:commentId", requireAdmin, async (req, res) => {
+    try {
+      const commentId = Number(req.params.commentId);
+      if (Number.isNaN(commentId)) return res.status(400).json({ message: "Invalid comment ID" });
+      await storage.deleteMessageComment(commentId);
+      res.json({ message: "Comment deleted" });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }

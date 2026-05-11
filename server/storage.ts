@@ -2,11 +2,12 @@ import {
   type User, type InsertUser,
   type Photo, type InsertPhoto,
   type Message, type InsertMessage,
+  type MessageComment, type InsertMessageComment,
   type Event, type InsertEvent,
   type Recommendation, type InsertRecommendation,
   type RecommendationComment, type InsertRecommendationComment,
   type Rsvp, type InsertRsvp,
-  users, photos, messages, events, recommendations, recommendationComments, rsvps,
+  users, photos, messages, messageComments, events, recommendations, recommendationComments, rsvps,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql } from "drizzle-orm";
@@ -28,6 +29,9 @@ export interface IStorage {
   getMessages(): Promise<Message[]>;
   createMessage(message: InsertMessage): Promise<Message>;
   deleteMessage(id: number): Promise<void>;
+  getMessageComments(messageId: number): Promise<MessageComment[]>;
+  createMessageComment(comment: InsertMessageComment): Promise<MessageComment>;
+  deleteMessageComment(id: number): Promise<void>;
   getEvents(): Promise<Event[]>;
   getEvent(id: number): Promise<Event | undefined>;
   createEvent(event: InsertEvent): Promise<Event>;
@@ -119,6 +123,19 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMessage(id: number): Promise<void> {
     await db.delete(messages).where(eq(messages.id, id));
+  }
+
+  async getMessageComments(messageId: number): Promise<MessageComment[]> {
+    return db.select().from(messageComments).where(eq(messageComments.messageId, messageId)).orderBy(messageComments.createdAt);
+  }
+
+  async createMessageComment(comment: InsertMessageComment): Promise<MessageComment> {
+    const [created] = await db.insert(messageComments).values(comment).returning();
+    return created;
+  }
+
+  async deleteMessageComment(id: number): Promise<void> {
+    await db.delete(messageComments).where(eq(messageComments.id, id));
   }
 
   async getEvents(): Promise<Event[]> {
