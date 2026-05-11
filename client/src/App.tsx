@@ -1,4 +1,5 @@
-import { Switch, Route } from "wouter";
+import { useEffect } from "react";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -46,7 +47,18 @@ function Router() {
 }
 
 function AppContent() {
-  const { isLoading } = useAuth();
+  const { isLoading, user } = useAuth();
+  const [location, navigate] = useLocation();
+
+  useEffect(() => {
+    if (!isLoading && !user && location !== "/auth") {
+      navigate("/auth");
+    }
+
+    if (!isLoading && user && location === "/auth") {
+      navigate("/");
+    }
+  }, [isLoading, user, location, navigate]);
 
   if (isLoading) {
     return (
@@ -54,6 +66,10 @@ function AppContent() {
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
+  }
+
+  if (!user) {
+    return <AuthPage />;
   }
 
   const style = {

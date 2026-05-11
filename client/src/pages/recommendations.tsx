@@ -1,16 +1,18 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { MapPinned, Plus, Loader2, AlertCircle, Shield, Tag, LogIn, Upload } from "lucide-react";
+import { MapPinned, Plus, Loader2, AlertCircle, Shield, Tag, LogIn, Upload, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import type { Recommendation } from "@shared/schema";
+import { recommendationTypeValues } from "@shared/schema";
 import { Link } from "wouter";
 
 function getTypeVariant(type: string): "default" | "secondary" | "destructive" {
@@ -32,11 +34,21 @@ export default function RecommendationsPage() {
   const canEdit = !!user && ["admin", "editor"].includes(user.role);
   const canUpload = !!user && ["admin", "editor", "contributor"].includes(user.role);
   const [uploadingRecommendationId, setUploadingRecommendationId] = useState<number | null>(null);
+  const [filterType, setFilterType] = useState<string>("all");
+  const [filterLocation, setFilterLocation] = useState<string>("all");
 
   const { data: recommendations, isLoading, error } = useQuery<Recommendation[]>({
     queryKey: ["/api/recommendations"],
     enabled: !!user,
   });
+
+  const uniqueLocations = useMemo(() => {
+    if (!recommendations) return [];
+    const locs = Array.from(
+      new Set(recommendations.map((r) => r.location?.trim()).filter(Boolean))
+    ) as string[];
+    return locs.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  }, [recommendations]);
 
   const sortedRecommendations = useMemo(() => {
     if (!recommendations) return [];
@@ -45,10 +57,19 @@ export default function RecommendationsPage() {
       if (locationComparison !== 0) {
         return locationComparison;
       }
-
       return left.title.localeCompare(right.title, undefined, { sensitivity: "base" });
     });
   }, [recommendations]);
+
+  const filteredRecommendations = useMemo(() => {
+    return sortedRecommendations.filter((r) => {
+      const typeMatch = filterType === "all" || r.type === filterType;
+      const locationMatch = filterLocation === "all" || (r.location?.trim() || "") === filterLocation;
+      return typeMatch && locationMatch;
+    });
+  }, [sortedRecommendations, filterType, filterLocation]);
+
+  const hasActiveFilters = filterType !== "all" || filterLocation !== "all";
 
   const uploadPhotoMutation = useMutation({
     mutationFn: async ({ recommendationId, file }: { recommendationId: number; file: File }) => {
@@ -111,7 +132,11 @@ export default function RecommendationsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-foreground" data-testid="text-recommendations-title">Local Recommendations</h1>
-            <p className="text-sm text-muted-foreground mt-1">Browse by area. Cards are sorted by location, then title.</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {hasActiveFilters
+                ? `Showing ${filteredRecommendations.length} of ${sortedRecommendations.length} recommendations`
+                : "Browse by area. Cards are sorted by location, then title."}
+            </p>
           </div>
           {canEdit && (
             <div className="flex items-center gap-2">
@@ -126,6 +151,47 @@ export default function RecommendationsPage() {
                 </Link>
               </Button>
             </div>
+          )}
+        </div>
+      </div>
+
+      {/* Filter bar */}
+      <div className="px-6 pb-0 pt-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <Select value={filterType} onValueChange={setFilterType}>
+            <SelectTrigger className="w-44" data-testid="select-filter-type">
+              <SelectValue placeholder="All types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All types</SelectItem>
+              {recommendationTypeValues.map((t) => (
+                <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={filterLocation} onValueChange={setFilterLocation}>
+            <SelectTrigger className="w-48" data-testid="select-filter-location">
+              <SelectValue placeholder="All locations" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All locations</SelectItem>
+              {uniqueLocations.map((loc) => (
+                <SelectItem key={loc} value={loc}>{loc}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {hasActiveFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setFilterType("all"); setFilterLocation("all"); }}
+              data-testid="button-clear-filters"
+            >
+              <X className="mr-1 h-3.5 w-3.5" />
+              Clear filters
+            </Button>
           )}
         </div>
       </div>
@@ -151,9 +217,9 @@ export default function RecommendationsPage() {
               </Card>
             ))}
           </div>
-        ) : sortedRecommendations.length > 0 ? (
+        ) : filteredRecommendations.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {sortedRecommendations.map((recommendation) => (
+            {filteredRecommendations.map((recommendation) => (
               <Card
                 key={recommendation.id}
                 className="cursor-pointer hover-elevate"
@@ -221,8 +287,20 @@ export default function RecommendationsPage() {
             <div className="rounded-full bg-primary/10 p-4 mb-4">
               <MapPinned className="h-8 w-8 text-primary" />
             </div>
-            <h3 className="text-lg font-semibold text-foreground mb-1">No recommendations yet</h3>
-            <p className="text-sm text-muted-foreground max-w-sm">Check back soon for favorite spots around Maui.</p>
+            {hasActiveFilters ? (
+              <>
+                <h3 className="text-lg font-semibold text-foreground mb-1">No matches found</h3>
+                <p className="text-sm text-muted-foreground max-w-sm mb-4">Try adjusting your filters.</p>
+                <Button variant="outline" size="sm" onClick={() => { setFilterType("all"); setFilterLocation("all"); }}>
+                  <X className="mr-1 h-3.5 w-3.5" /> Clear filters
+                </Button>
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-semibold text-foreground mb-1">No recommendations yet</h3>
+                <p className="text-sm text-muted-foreground max-w-sm">Check back soon for favorite spots around Maui.</p>
+              </>
+            )}
           </div>
         )}
       </div>

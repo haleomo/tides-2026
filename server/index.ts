@@ -31,14 +31,16 @@ app.use(
       conString: process.env.DATABASE_URL,
       createTableIfMissing: true,
     }),
-    secret: process.env.SESSION_SECRET || "tides-75-secret",
+    name: "tides.sid",
+    secret: process.env.SESSION_SECRET || "default_secret",
     resave: false,
     saveUninitialized: false,
     proxy: true,
+    unset: "destroy",
     cookie: {
-      maxAge: 30 * 24 * 60 * 60 * 1000,
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
     },
   }),
@@ -96,6 +98,7 @@ app.use((req, res, next) => {
   const { sql } = await import("drizzle-orm");
   const schema = await import("@shared/schema");
 
+  // Create all tables with complete schema in one go
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS users (
       id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -109,15 +112,7 @@ app.use((req, res, next) => {
       needs_password_setup BOOLEAN NOT NULL DEFAULT false
     )
   `);
-  await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS mobile_number TEXT`);
-  await db.execute(sql`UPDATE users SET mobile_number = '' WHERE mobile_number IS NULL`);
-  await db.execute(sql`ALTER TABLE users ALTER COLUMN mobile_number SET DEFAULT ''`);
-  await db.execute(sql`ALTER TABLE users ALTER COLUMN role SET DEFAULT 'viewer'`);
-  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS users_full_name_unique_idx ON users (full_name)`);
-  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique_idx ON users (email)`);
-  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS users_mobile_number_unique_idx ON users (mobile_number) WHERE mobile_number <> ''`);
-  await db.execute(sql`UPDATE users SET role = 'viewer' WHERE role = 'member'`);
-  await db.execute(sql`UPDATE users SET role = 'admin' WHERE role = 'root'`);
+
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS photos (
       id SERIAL PRIMARY KEY,
@@ -126,11 +121,11 @@ app.use((req, res, next) => {
       image_url TEXT NOT NULL,
       uploaded_by TEXT NOT NULL,
       event_id INTEGER,
+      recommendation_id INTEGER,
       created_at TIMESTAMP DEFAULT NOW() NOT NULL
     )
   `);
-  await db.execute(sql`ALTER TABLE photos ADD COLUMN IF NOT EXISTS event_id INTEGER`);
-  await db.execute(sql`ALTER TABLE photos ADD COLUMN IF NOT EXISTS recommendation_id INTEGER`);
+
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS messages (
       id SERIAL PRIMARY KEY,
@@ -139,6 +134,7 @@ app.use((req, res, next) => {
       created_at TIMESTAMP DEFAULT NOW() NOT NULL
     )
   `);
+
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS events (
       id SERIAL PRIMARY KEY,
@@ -151,8 +147,7 @@ app.use((req, res, next) => {
       created_by_name TEXT
     )
   `);
-  await db.execute(sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS created_by_user_id VARCHAR`);
-  await db.execute(sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS created_by_name TEXT`);
+
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS recommendations (
       id SERIAL PRIMARY KEY,
@@ -165,11 +160,7 @@ app.use((req, res, next) => {
       created_at TIMESTAMP DEFAULT NOW() NOT NULL
     )
   `);
-  await db.execute(sql`ALTER TABLE recommendations ADD COLUMN IF NOT EXISTS created_by_user_id VARCHAR`);
-  await db.execute(sql`ALTER TABLE recommendations ADD COLUMN IF NOT EXISTS created_by_name TEXT`);
-  await db.execute(sql`ALTER TABLE recommendations ADD COLUMN IF NOT EXISTS location TEXT`);
-  await db.execute(sql`UPDATE recommendations SET location = '' WHERE location IS NULL`);
-  await db.execute(sql`ALTER TABLE recommendations ALTER COLUMN location SET DEFAULT ''`);
+
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS recommendation_comments (
       id SERIAL PRIMARY KEY,
@@ -180,7 +171,7 @@ app.use((req, res, next) => {
       created_at TIMESTAMP DEFAULT NOW() NOT NULL
     )
   `);
-  await db.execute(sql`ALTER TABLE recommendation_comments ADD COLUMN IF NOT EXISTS author_user_id VARCHAR`);
+
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS rsvps (
       id SERIAL PRIMARY KEY,
@@ -196,7 +187,11 @@ app.use((req, res, next) => {
       created_at TIMESTAMP DEFAULT NOW() NOT NULL
     )
   `);
-  await db.execute(sql`ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS mobile_number TEXT`);
+
+  // Create indexes
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS users_full_name_unique_idx ON users (full_name)`);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique_idx ON users (email)`);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS users_mobile_number_unique_idx ON users (mobile_number) WHERE mobile_number <> ''`);
 
   const { seedDatabase } = await import("./seed");
   await seedDatabase();
@@ -237,6 +232,7 @@ app.use((req, res, next) => {
       : { port, host: "0.0.0.0", reusePort: true };
 
   httpServer.listen(listenOptions, () => {
-    log(`serving on port ${port}`);
+    log(`Using server secret ${process.env.SESSION_SECRET ? "** OK **** OK **" : "** WARNING not set WARNING **"}`);
+    log(`Serving on port ${port}`);
   });
 })();

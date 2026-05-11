@@ -372,57 +372,6 @@ export default function RecommendationDetailPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <MessageCircle className="h-5 w-5 text-primary" />
-            User Comments
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {canComment ? (
-            <Form {...commentForm}>
-              <form onSubmit={commentForm.handleSubmit((values) => commentMutation.mutate(values))} className="space-y-3">
-                <FormField
-                  control={commentForm.control}
-                  name="content"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl>
-                        <Textarea {...field} placeholder="Add a comment..." className="min-h-24" data-testid="input-recommendation-comment" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" disabled={commentMutation.isPending} data-testid="button-add-comment">
-                  {commentMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-                  Add Comment
-                </Button>
-              </form>
-            </Form>
-          ) : (
-            <p className="text-sm text-muted-foreground">Only contributors, editors, and admins can add comments.</p>
-          )}
-
-          {recommendation.comments.length > 0 ? (
-            <div className="space-y-3">
-              {recommendation.comments.map((comment) => (
-                <div key={comment.id} className="rounded-2xl border p-4">
-                  <div className="flex items-center justify-between gap-3 mb-2">
-                    <span className="font-medium text-foreground">{comment.authorName}</span>
-                    <span className="text-xs text-muted-foreground">{new Date(comment.createdAt).toLocaleString()}</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{comment.content}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">No comments yet.</p>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
             <ImagePlus className="h-5 w-5 text-primary" />
             Photos
           </CardTitle>
@@ -471,6 +420,57 @@ export default function RecommendationDetailPage() {
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">No photos uploaded yet.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageCircle className="h-5 w-5 text-primary" />
+            User Comments
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {canComment ? (
+            <Form {...commentForm}>
+              <form onSubmit={commentForm.handleSubmit((values) => commentMutation.mutate(values))} className="space-y-3">
+                <FormField
+                  control={commentForm.control}
+                  name="content"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Textarea {...field} placeholder="Add a comment..." className="min-h-24" data-testid="input-recommendation-comment" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" disabled={commentMutation.isPending} data-testid="button-add-comment">
+                  {commentMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                  Add Comment
+                </Button>
+              </form>
+            </Form>
+          ) : (
+            <p className="text-sm text-muted-foreground">Only contributors, editors, and admins can add comments.</p>
+          )}
+
+          {recommendation.comments.length > 0 ? (
+            <div className="space-y-3">
+              {recommendation.comments.map((comment) => (
+                <div key={comment.id} className="rounded-2xl border p-4">
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <span className="font-medium text-foreground">{comment.authorName}</span>
+                    <span className="text-xs text-muted-foreground">{new Date(comment.createdAt).toLocaleString()}</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{comment.content}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No comments yet.</p>
           )}
         </CardContent>
       </Card>

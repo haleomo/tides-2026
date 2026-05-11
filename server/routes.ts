@@ -243,7 +243,7 @@ export async function registerRoutes(
       if (err) {
         return res.status(500).json({ message: "Failed to log out" });
       }
-      res.clearCookie("connect.sid");
+      res.clearCookie("tides.sid");
       res.json({ message: "Logged out" });
     });
   });

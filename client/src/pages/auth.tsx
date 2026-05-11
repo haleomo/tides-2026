@@ -348,15 +348,6 @@ export default function AuthPage() {
             )}
           </CardContent>
         </Card>
-
-        <div className="text-center mt-4">
-          <Button variant="ghost" size="sm" asChild className="text-sky-100 hover:text-white hover:bg-white/10">
-            <Link href="/" data-testid="link-back-home">
-              <ArrowLeft className="h-4 w-4 mr-1" />
-              Keep Browsing
-            </Link>
-          </Button>
-        </div>
       </div>
     </div>
   );
