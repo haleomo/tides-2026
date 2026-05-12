@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertPhotoSchema, insertMessageSchema, insertMessageCommentSchema, insertEventSchema, insertRecommendationSchema, insertRecommendationCommentSchema, insertRsvpSchema, registerUserSchema, loginUserSchema, users, roleSchema, type Role } from "@shared/schema";
+import { insertPhotoSchema, insertMessageSchema, insertMessageCommentSchema, insertEventSchema, insertRecommendationSchema, insertRecommendationCommentSchema, insertRsvpSchema, insertItinerarySchema, registerUserSchema, loginUserSchema, users, roleSchema, type Role } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 import multer from "multer";
@@ -307,6 +307,20 @@ export async function registerRoutes(
     res.json(messages);
   });
 
+  app.get("/api/messages/:id/photos", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) {
+        return res.status(400).json({ message: "Invalid message ID" });
+      }
+
+      const photos = await storage.getPhotosByMessageId(id);
+      res.json(photos);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.post("/api/messages", requireContributor, async (req, res) => {
     try {
       const parsed = insertMessageSchema.safeParse(req.body);
@@ -315,6 +329,47 @@ export async function registerRoutes(
       }
       const message = await storage.createMessage(parsed.data);
       res.status(201).json(message);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/messages/:id/photos", requireContributor, upload.single("photo"), async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) {
+        return res.status(400).json({ message: "Invalid message ID" });
+      }
+
+      const message = await storage.getMessage(id);
+      if (!message) {
+        return res.status(404).json({ message: "Message not found" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const currentUser = await storage.getUser(req.session.userId!);
+      if (!currentUser) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const imageUrl = `/uploads/${req.file.filename}`;
+      const parsed = insertPhotoSchema.safeParse({
+        title: req.body.title || message.content.slice(0, 40) || "Message photo",
+        description: req.body.description || null,
+        imageUrl,
+        uploadedBy: req.body.uploadedBy || currentUser.fullName,
+        messageId: id,
+      });
+
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid photo data" });
+      }
+
+      const photo = await storage.createPhoto(parsed.data);
+      res.status(201).json(photo);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -778,7 +833,13 @@ export async function registerRoutes(
       const id = Number(req.params.id);
       if (Number.isNaN(id)) return res.status(400).json({ message: "Invalid message ID" });
       const comments = await storage.getMessageComments(id);
-      res.json(comments);
+      const commentsWithPhotos = await Promise.all(
+        comments.map(async (comment) => ({
+          ...comment,
+          photos: await storage.getPhotosByMessageCommentId(comment.id),
+        })),
+      );
+      res.json(commentsWithPhotos);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -807,6 +868,98 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/messages/:id/comments/:commentId/photos", requireContributor, upload.single("photo"), async (req, res) => {
+    try {
+      const messageId = Number(req.params.id);
+      const commentId = Number(req.params.commentId);
+      if (Number.isNaN(messageId) || Number.isNaN(commentId)) {
+        return res.status(400).json({ message: "Invalid message or comment ID" });
+      }
+
+      const message = await storage.getMessage(messageId);
+      if (!message) {
+        return res.status(404).json({ message: "Message not found" });
+      }
+
+      const comments = await storage.getMessageComments(messageId);
+      const comment = comments.find((entry) => entry.id === commentId);
+      if (!comment) {
+        return res.status(404).json({ message: "Comment not found" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const currentUser = await storage.getUser(req.session.userId!);
+      if (!currentUser) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const imageUrl = `/uploads/${req.file.filename}`;
+      const parsed = insertPhotoSchema.safeParse({
+        title: req.body.title || comment.content.slice(0, 40) || "Reply photo",
+        description: req.body.description || null,
+        imageUrl,
+        uploadedBy: req.body.uploadedBy || currentUser.fullName,
+        messageId,
+        messageCommentId: commentId,
+      });
+
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid photo data" });
+      }
+
+      const photo = await storage.createPhoto(parsed.data);
+      res.status(201).json(photo);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/messages/:id/photos/:photoId", requireAdmin, async (req, res) => {
+    try {
+      const messageId = Number(req.params.id);
+      const photoId = Number(req.params.photoId);
+      if (Number.isNaN(messageId) || Number.isNaN(photoId)) {
+        return res.status(400).json({ message: "Invalid message or photo ID" });
+      }
+
+      const photo = await storage.getPhotosByMessageId(messageId);
+      const targetPhoto = photo.find((entry) => entry.id === photoId);
+      if (!targetPhoto) {
+        return res.status(404).json({ message: "Photo not found for this message" });
+      }
+
+      await storage.deletePhoto(photoId);
+      res.json({ message: "Message photo deleted" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/messages/:id/comments/:commentId/photos/:photoId", requireAdmin, async (req, res) => {
+    try {
+      const messageId = Number(req.params.id);
+      const commentId = Number(req.params.commentId);
+      const photoId = Number(req.params.photoId);
+      if (Number.isNaN(messageId) || Number.isNaN(commentId) || Number.isNaN(photoId)) {
+        return res.status(400).json({ message: "Invalid message, comment, or photo ID" });
+      }
+
+      const photo = await storage.getPhotosByMessageCommentId(commentId);
+      const targetPhoto = photo.find((entry) => entry.id === photoId && entry.messageId === messageId);
+      if (!targetPhoto) {
+        return res.status(404).json({ message: "Photo not found for this reply" });
+      }
+
+      await storage.deletePhoto(photoId);
+      res.json({ message: "Reply photo deleted" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.delete("/api/messages/:id/comments/:commentId", requireAdmin, async (req, res) => {
     try {
       const commentId = Number(req.params.commentId);
@@ -828,6 +981,54 @@ export async function registerRoutes(
       res.status(500).json({ message: error.message });
     }
   });
+  // Itinerary routes
+  app.get("/api/itineraries", requireAuth, async (_req, res) => {
+    try {
+      const itineraries = await storage.getItineraries();
+      res.json(itineraries);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
 
+  app.post("/api/itineraries", requireContributor, async (req, res) => {
+    try {
+      const parsed = insertItinerarySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid itinerary data" });
+      }
+      const itinerary = await storage.createItinerary(parsed.data);
+      res.status(201).json(itinerary);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.patch("/api/itineraries/:id", requireContributor, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid itinerary ID" });
+      
+      const parsed = insertItinerarySchema.partial().safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid itinerary data" });
+      }
+      const itinerary = await storage.updateItinerary(id, parsed.data);
+      res.json(itinerary);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/itineraries/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid itinerary ID" });
+      await storage.deleteItinerary(id);
+      res.json({ message: "Itinerary day deleted" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
   return httpServer;
 }

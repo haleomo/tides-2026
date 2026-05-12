@@ -20,6 +20,7 @@ import RecommendationDetail from "@/pages/recommendation-detail";
 import RecommendationForm from "@/pages/recommendation-form";
 import About from "@/pages/about";
 import Rsvp from "@/pages/rsvp";
+import Itinerary from "@/pages/itinerary";
 import AuthPage from "@/pages/auth";
 import Admin from "@/pages/admin";
 import { UserMenu } from "@/components/user-menu";
@@ -38,6 +39,7 @@ function Router() {
       <Route path="/recommendations/:id" component={RecommendationDetail} />
       <Route path="/recommendations" component={Recommendations} />
       <Route path="/rsvp" component={Rsvp} />
+      <Route path="/itinerary" component={Itinerary} />
       <Route path="/about" component={About} />
       <Route path="/admin" component={Admin} />
       <Route path="/auth" component={AuthPage} />

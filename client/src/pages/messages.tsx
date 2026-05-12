@@ -2,9 +2,22 @@ import { useRef, useEffect, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Send, MessageCircle, Loader2, AlertCircle, LogIn, Trash2, CornerDownRight, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  Send,
+  MessageCircle,
+  Loader2,
+  AlertCircle,
+  LogIn,
+  Trash2,
+  CornerDownRight,
+  ChevronDown,
+  ChevronRight,
+  Image as ImageIcon,
+  Paperclip,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,7 +27,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { insertMessageSchema } from "@shared/schema";
 import { useAuth } from "@/lib/auth";
 import { Link } from "wouter";
-import type { Message, MessageComment } from "@shared/schema";
+import type { Message, MessageComment, Photo } from "@shared/schema";
 
 function getInitials(name: string) {
   return name
@@ -45,14 +58,56 @@ interface MessageItemProps {
   msg: Message;
   isAdmin: boolean;
   canComment: boolean;
+  canUploadPhotos: boolean;
+  currentUserName: string;
 }
 
-function MessageItem({ msg, isAdmin, canComment }: MessageItemProps) {
+type MessageCommentWithPhotos = MessageComment & { photos?: Photo[] };
+
+function PhotoGrid({ photos }: { photos: Photo[] }) {
+  if (!photos.length) return null;
+
+  return (
+    <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+      {photos.map((photo) => (
+        <a
+          key={photo.id}
+          href={photo.imageUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="group overflow-hidden rounded-md border bg-background"
+          data-testid={`photo-link-${photo.id}`}
+        >
+          <img
+            src={photo.imageUrl}
+            alt={photo.title}
+            className="h-24 w-full object-cover transition-transform group-hover:scale-[1.02]"
+          />
+        </a>
+      ))}
+    </div>
+  );
+}
+
+function MessageItem({ msg, isAdmin, canComment, canUploadPhotos, currentUserName }: MessageItemProps) {
   const { toast } = useToast();
   const [threadOpen, setThreadOpen] = useState(false);
   const [replyContent, setReplyContent] = useState("");
+  const [replyPhotoFile, setReplyPhotoFile] = useState<File | null>(null);
+  const replyPhotoInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: comments, isLoading: commentsLoading } = useQuery<MessageComment[]>({
+  const { data: messagePhotos } = useQuery<Photo[]>({
+    queryKey: ["/api/messages", msg.id, "photos"],
+    queryFn: async () => {
+      const res = await fetch(`/api/messages/${msg.id}/photos`, { credentials: "include" });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    enabled: threadOpen,
+    refetchInterval: threadOpen ? 5000 : false,
+  });
+
+  const { data: comments, isLoading: commentsLoading } = useQuery<MessageCommentWithPhotos[]>({
     queryKey: ["/api/messages", msg.id, "comments"],
     queryFn: async () => {
       const res = await fetch(`/api/messages/${msg.id}/comments`, { credentials: "include" });
@@ -75,13 +130,35 @@ function MessageItem({ msg, isAdmin, canComment }: MessageItemProps) {
   });
 
   const replyMutation = useMutation({
-    mutationFn: async (content: string) => {
-      const res = await apiRequest("POST", `/api/messages/${msg.id}/comments`, { content });
-      return res.json();
+    mutationFn: async (payload: { content: string; photoFile: File | null }) => {
+      const res = await apiRequest("POST", `/api/messages/${msg.id}/comments`, { content: payload.content });
+      const comment = await res.json();
+
+      if (payload.photoFile) {
+        const formData = new FormData();
+        formData.append("photo", payload.photoFile);
+        formData.append("title", payload.photoFile.name);
+        formData.append("description", "");
+        formData.append("uploadedBy", currentUserName);
+
+        const uploadRes = await fetch(`/api/messages/${msg.id}/comments/${comment.id}/photos`, {
+          method: "POST",
+          body: formData,
+          credentials: "include",
+        });
+
+        if (!uploadRes.ok) {
+          throw new Error(await uploadRes.text());
+        }
+      }
+
+      return comment;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/messages", msg.id, "comments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/messages", msg.id, "photos"] });
       setReplyContent("");
+      setReplyPhotoFile(null);
       toast({ title: "Reply posted" });
     },
     onError: (err: Error) => toast({ title: "Failed to post reply", description: err.message, variant: "destructive" }),
@@ -102,7 +179,7 @@ function MessageItem({ msg, isAdmin, canComment }: MessageItemProps) {
     e.preventDefault();
     const trimmed = replyContent.trim();
     if (!trimmed) return;
-    replyMutation.mutate(trimmed);
+    replyMutation.mutate({ content: trimmed, photoFile: replyPhotoFile });
   };
 
   const replyCount = comments?.length ?? 0;
@@ -136,6 +213,7 @@ function MessageItem({ msg, isAdmin, canComment }: MessageItemProps) {
                 </Button>
               )}
             </div>
+            {messagePhotos && messagePhotos.length > 0 && <PhotoGrid photos={messagePhotos} />}
           </CardContent>
         </Card>
 
@@ -193,6 +271,7 @@ function MessageItem({ msg, isAdmin, canComment }: MessageItemProps) {
                     </div>
                   </div>
                   <p className="text-sm text-foreground whitespace-pre-wrap break-words mt-0.5">{comment.content}</p>
+                  {comment.photos && comment.photos.length > 0 && <PhotoGrid photos={comment.photos} />}
                 </div>
               </div>
             ))}
@@ -202,7 +281,7 @@ function MessageItem({ msg, isAdmin, canComment }: MessageItemProps) {
             )}
 
             {canComment && (
-              <form onSubmit={handleReply} className="flex items-end gap-2 pt-1">
+              <form onSubmit={handleReply} className="space-y-2 pt-1">
                 <Textarea
                   value={replyContent}
                   onChange={(e) => setReplyContent(e.target.value)}
@@ -216,18 +295,57 @@ function MessageItem({ msg, isAdmin, canComment }: MessageItemProps) {
                     }
                   }}
                 />
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={replyMutation.isPending || !replyContent.trim()}
-                  className="self-end"
-                >
-                  {replyMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <CornerDownRight className="h-4 w-4" />
+                <div className="flex items-center gap-2 flex-wrap">
+                  {canUploadPhotos && (
+                    <>
+                      <Input
+                        ref={replyPhotoInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          setReplyPhotoFile(e.target.files?.[0] ?? null);
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => replyPhotoInputRef.current?.click()}
+                      >
+                        <Paperclip className="mr-2 h-4 w-4" />
+                        {replyPhotoFile ? replyPhotoFile.name : "Attach photo"}
+                      </Button>
+                      {replyPhotoFile && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setReplyPhotoFile(null);
+                            if (replyPhotoInputRef.current) {
+                              replyPhotoInputRef.current.value = "";
+                            }
+                          }}
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </>
                   )}
-                </Button>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={replyMutation.isPending || !replyContent.trim()}
+                    className="self-end ml-auto"
+                  >
+                    {replyMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CornerDownRight className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
               </form>
             )}
           </div>
@@ -242,7 +360,10 @@ export default function Messages() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const canPostMessages = user ? ["admin", "editor", "contributor"].includes(user.role) : false;
+  const canUploadPhotos = canPostMessages;
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagePhotoInputRef = useRef<HTMLInputElement>(null);
+  const [messagePhotoFile, setMessagePhotoFile] = useState<File | null>(null);
 
   const form = useForm({
     resolver: zodResolver(insertMessageSchema),
@@ -275,16 +396,46 @@ export default function Messages() {
     },
   });
 
+  const uploadMessagePhoto = async (messageId: number, photoFile: File) => {
+    const formData = new FormData();
+    formData.append("photo", photoFile);
+    formData.append("title", photoFile.name);
+    formData.append("description", "");
+    formData.append("uploadedBy", user?.fullName || "Member");
+
+    const res = await fetch(`/api/messages/${messageId}/photos`, {
+      method: "POST",
+      body: formData,
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      throw new Error(await res.text());
+    }
+  };
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const onSubmit = (values: { author: string; content: string }) => {
+  const onSubmit = async (values: { author: string; content: string }) => {
     if (!canPostMessages) {
       toast({ title: "Permission denied", description: "Only contributors, editors, and admins can post messages.", variant: "destructive" });
       return;
     }
-    sendMutation.mutate(values);
+    try {
+      const createdMessage = await sendMutation.mutateAsync(values);
+      if (messagePhotoFile) {
+        await uploadMessagePhoto(createdMessage.id, messagePhotoFile);
+        queryClient.invalidateQueries({ queryKey: ["/api/messages", createdMessage.id, "photos"] });
+      }
+      setMessagePhotoFile(null);
+      if (messagePhotoInputRef.current) {
+        messagePhotoInputRef.current.value = "";
+      }
+    } catch (error: any) {
+      toast({ title: "Message upload failed", description: error.message, variant: "destructive" });
+    }
   };
 
   return (
@@ -317,7 +468,14 @@ export default function Messages() {
           </div>
         ) : messages && messages.length > 0 ? (
           messages.map((msg) => (
-            <MessageItem key={msg.id} msg={msg} isAdmin={isAdmin} canComment={canPostMessages} />
+            <MessageItem
+              key={msg.id}
+              msg={msg}
+              isAdmin={isAdmin}
+              canComment={canPostMessages}
+              canUploadPhotos={canUploadPhotos}
+              currentUserName={user?.fullName || "Member"}
+            />
           ))
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -336,7 +494,7 @@ export default function Messages() {
       {user ? canPostMessages ? (
         <div className="border-t p-4">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="flex gap-2">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-2">
               <FormField
                 control={form.control}
                 name="content"
@@ -361,15 +519,54 @@ export default function Messages() {
                   </FormItem>
                 )}
               />
-              <Button
-                type="submit"
-                size="icon"
-                disabled={sendMutation.isPending}
-                className="self-end"
-                data-testid="button-send-message"
-              >
-                {sendMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              </Button>
+              <div className="flex items-center gap-2 flex-wrap">
+                {canUploadPhotos && (
+                  <>
+                    <Input
+                      ref={messagePhotoInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        setMessagePhotoFile(e.target.files?.[0] ?? null);
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => messagePhotoInputRef.current?.click()}
+                    >
+                      <ImageIcon className="mr-2 h-4 w-4" />
+                      {messagePhotoFile ? messagePhotoFile.name : "Attach photo"}
+                    </Button>
+                    {messagePhotoFile && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setMessagePhotoFile(null);
+                          if (messagePhotoInputRef.current) {
+                            messagePhotoInputRef.current.value = "";
+                          }
+                        }}
+                      >
+                        Clear
+                      </Button>
+                    )}
+                  </>
+                )}
+                <Button
+                  type="submit"
+                  size="icon"
+                  disabled={sendMutation.isPending}
+                  className="ml-auto self-end"
+                  data-testid="button-send-message"
+                >
+                  {sendMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                </Button>
+              </div>
             </form>
           </Form>
         </div>

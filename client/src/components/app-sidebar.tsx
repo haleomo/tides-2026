@@ -1,4 +1,4 @@
-import { Home, Camera, MessageCircle, Calendar, Info, UserCheck, Shield, MapPinned } from "lucide-react";
+import { Home, Camera, MessageCircle, Calendar, Info, UserCheck, Shield, MapPinned, MapIcon } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import tidesLogo from "@assets/GH-Logo-Image.png";
 import { useAuth } from "@/lib/auth";
@@ -22,6 +22,7 @@ const navItems = [
   { title: "Messages", url: "/messages", icon: MessageCircle },
   { title: "Trip Events", url: "/events", icon: Calendar },
   { title: "Recommendations", url: "/recommendations", icon: MapPinned },
+  { title: "Itinerary", url: "/itinerary", icon: MapIcon },
   { title: "RSVP", url: "/rsvp", icon: UserCheck },
   { title: "About", url: "/about", icon: Info },
 ];

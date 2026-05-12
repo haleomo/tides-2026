@@ -48,6 +48,8 @@ export const photos = pgTable("photos", {
   uploadedBy: text("uploaded_by").notNull(),
   eventId: integer("event_id"),
   recommendationId: integer("recommendation_id"),
+  messageId: integer("message_id"),
+  messageCommentId: integer("message_comment_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -174,3 +176,20 @@ export const insertRsvpSchema = createInsertSchema(rsvps).omit({
 
 export type InsertRsvp = z.infer<typeof insertRsvpSchema>;
 export type Rsvp = typeof rsvps.$inferSelect;
+
+export const itineraries = pgTable("itineraries", {
+  id: serial("id").primaryKey(),
+  day: integer("day").notNull(),
+  date: text("date").notNull(),
+  content: text("content").notNull(),
+  position: integer("position").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertItinerarySchema = createInsertSchema(itineraries).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertItinerary = z.infer<typeof insertItinerarySchema>;
+export type Itinerary = typeof itineraries.$inferSelect;

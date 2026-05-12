@@ -7,10 +7,11 @@ import {
   type Recommendation, type InsertRecommendation,
   type RecommendationComment, type InsertRecommendationComment,
   type Rsvp, type InsertRsvp,
-  users, photos, messages, messageComments, events, recommendations, recommendationComments, rsvps,
+  type Itinerary, type InsertItinerary,
+  users, photos, messages, messageComments, events, recommendations, recommendationComments, rsvps, itineraries,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -24,9 +25,12 @@ export interface IStorage {
   getPhotos(): Promise<Photo[]>;
   getPhotosByEventId(eventId: number): Promise<Photo[]>;
   getPhotosByRecommendationId(recommendationId: number): Promise<Photo[]>;
+  getPhotosByMessageId(messageId: number): Promise<Photo[]>;
+  getPhotosByMessageCommentId(messageCommentId: number): Promise<Photo[]>;
   createPhoto(photo: InsertPhoto): Promise<Photo>;
   deletePhoto(id: number): Promise<void>;
   getMessages(): Promise<Message[]>;
+  getMessage(id: number): Promise<Message | undefined>;
   createMessage(message: InsertMessage): Promise<Message>;
   deleteMessage(id: number): Promise<void>;
   getMessageComments(messageId: number): Promise<MessageComment[]>;
@@ -46,6 +50,10 @@ export interface IStorage {
   createRecommendationComment(comment: InsertRecommendationComment): Promise<RecommendationComment>;
   getRsvps(): Promise<Rsvp[]>;
   createRsvp(rsvp: InsertRsvp): Promise<Rsvp>;
+  getItineraries(): Promise<Itinerary[]>;
+  createItinerary(itinerary: InsertItinerary): Promise<Itinerary>;
+  updateItinerary(id: number, itinerary: Partial<InsertItinerary>): Promise<Itinerary>;
+  deleteItinerary(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -103,6 +111,18 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(photos).where(eq(photos.recommendationId, recommendationId)).orderBy(desc(photos.createdAt));
   }
 
+  async getPhotosByMessageId(messageId: number): Promise<Photo[]> {
+    return db
+      .select()
+      .from(photos)
+      .where(and(eq(photos.messageId, messageId), isNull(photos.messageCommentId)))
+      .orderBy(desc(photos.createdAt));
+  }
+
+  async getPhotosByMessageCommentId(messageCommentId: number): Promise<Photo[]> {
+    return db.select().from(photos).where(eq(photos.messageCommentId, messageCommentId)).orderBy(desc(photos.createdAt));
+  }
+
   async createPhoto(photo: InsertPhoto): Promise<Photo> {
     const [created] = await db.insert(photos).values(photo).returning();
     return created;
@@ -114,6 +134,11 @@ export class DatabaseStorage implements IStorage {
 
   async getMessages(): Promise<Message[]> {
     return db.select().from(messages).orderBy(messages.createdAt);
+  }
+
+  async getMessage(id: number): Promise<Message | undefined> {
+    const [message] = await db.select().from(messages).where(eq(messages.id, id));
+    return message;
   }
 
   async createMessage(message: InsertMessage): Promise<Message> {
@@ -200,6 +225,24 @@ export class DatabaseStorage implements IStorage {
   async createRsvp(rsvp: InsertRsvp): Promise<Rsvp> {
     const [created] = await db.insert(rsvps).values(rsvp).returning();
     return created;
+  }
+
+  async getItineraries(): Promise<Itinerary[]> {
+    return db.select().from(itineraries).orderBy(itineraries.position);
+  }
+
+  async createItinerary(itinerary: InsertItinerary): Promise<Itinerary> {
+    const [created] = await db.insert(itineraries).values(itinerary).returning();
+    return created;
+  }
+
+  async updateItinerary(id: number, itinerary: Partial<InsertItinerary>): Promise<Itinerary> {
+    const [updated] = await db.update(itineraries).set(itinerary).where(eq(itineraries.id, id)).returning();
+    return updated;
+  }
+
+  async deleteItinerary(id: number): Promise<void> {
+    await db.delete(itineraries).where(eq(itineraries.id, id));
   }
 }
 

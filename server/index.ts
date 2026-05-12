@@ -122,10 +122,12 @@ app.use((req, res, next) => {
       uploaded_by TEXT NOT NULL,
       event_id INTEGER,
       recommendation_id INTEGER,
+      message_id INTEGER,
+      message_comment_id INTEGER,
       created_at TIMESTAMP DEFAULT NOW() NOT NULL
     )
   `);
-
+  
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS messages (
       id SERIAL PRIMARY KEY,
@@ -195,6 +197,17 @@ app.use((req, res, next) => {
       accommodation TEXT,
       transportation TEXT,
       notes TEXT,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS itineraries (
+      id SERIAL PRIMARY KEY,
+      day INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      content TEXT NOT NULL,
+      position INTEGER NOT NULL,
       created_at TIMESTAMP DEFAULT NOW() NOT NULL
     )
   `);

@@ -17,5 +17,25 @@ services:
       timeout: 5s
       retries: 10
 
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tides-2026-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgres://${POSTGRES_USER:-tides}:${POSTGRES_PASSWORD:-tides_dev_password}@postgres:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-tides2026}
+      SESSION_SECRET: ${SESSION_SECRET:-change-me-in-production}
+    volumes:
+      # Host bind mount so uploaded photos survive image rebuilds
+      - ./uploads:/app/uploads
+
 volumes:
   postgres-data:
