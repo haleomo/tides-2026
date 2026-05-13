@@ -25,7 +25,7 @@ const itineraryFormSchema = z.object({
   day: z.number().int().positive("Day must be a positive number"),
   date: z.string().min(1, "Date is required"),
   content: z.string().min(1, "Content is required"),
-  position: z.number().int().nonnegative(),
+  position: z.number().int().min(0, "Position must be 0 or greater"),
 });
 
 type ItineraryFormData = z.infer<typeof itineraryFormSchema>;
