@@ -3,3 +3,4 @@ node_modules
 .env.local
 .configure
 uploads/*
+start_server.sh

@@ -14,7 +14,7 @@ RUN npm run build
 # ── Stage 2: production image ─────────────────────────────────────────────────
 FROM node:22-alpine AS runner
 
-ENV NODE_ENV=production
+ENV NODE_ENV=dev
 WORKDIR /app
 
 # Only install production dependencies that were externalised by esbuild
@@ -28,6 +28,5 @@ COPY --from=builder /app/dist ./dist
 # but the directory must exist for the image to start cleanly without a mount.
 RUN mkdir -p /app/uploads
 
-EXPOSE 3000
-
+EXPOSE 3033
 CMD ["node", "dist/index.cjs"]

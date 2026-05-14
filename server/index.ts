@@ -17,6 +17,8 @@ declare module "http" {
   }
 }
 
+log(`Starting server...${process.env.DATABASE_URL}`);
+
 declare module "express-session" {
   interface SessionData {
     userId: string;
