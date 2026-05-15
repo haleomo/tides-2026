@@ -4,3 +4,5 @@ node_modules
 .configure
 uploads/*
 start_server.sh
+tides-2026.tar.gz
+dist/*

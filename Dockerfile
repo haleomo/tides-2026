@@ -28,5 +28,5 @@ COPY --from=builder /app/dist ./dist
 # but the directory must exist for the image to start cleanly without a mount.
 RUN mkdir -p /app/uploads
 
-EXPOSE 3033
+EXPOSE 5033
 CMD ["node", "dist/index.cjs"]
